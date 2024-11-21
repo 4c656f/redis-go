@@ -14,7 +14,7 @@ func EncodeBulkString(str string) []byte {
 		Type:  datatypes.BULK_STRING,
 		Value: str,
 	}
-	return data.GetRawOrMarshall()
+	return data.Marshall()
 }
 
 func EncodeSimpleString(str string) []byte {
@@ -22,7 +22,7 @@ func EncodeSimpleString(str string) []byte {
 		Type:  datatypes.SIMPLE_STRING,
 		Value: str,
 	}
-	return data.GetRawOrMarshall()
+	return data.Marshall()
 }
 
 func EncodeSimpleError(err string) []byte {
@@ -30,12 +30,11 @@ func EncodeSimpleError(err string) []byte {
 		Type:  datatypes.SIMPLE_ERROR,
 		Value: err,
 	}
-	return data.GetRawOrMarshall()
+	return data.Marshall()
 }
 
-func EncodeNull() (raw []byte, formated string) {
-	formated = fmt.Sprintf("$-1\r\n")
-	return []byte(formated), formated
+func EncodeNull() []byte{
+	return []byte(fmt.Sprintf("$-1\r\n"))
 }
 
 func EncodeKv(kv types.Kv) string {
@@ -54,21 +53,11 @@ func EncodeKvs(kvs []types.Kv) string {
 }
 
 func EncodeArray(arr []string) []byte {
-	values := make([]*datatypes.Data, len(arr))
-
-	for i, str := range arr {
-		values[i].Value = str
-	}
-
-	data := datatypes.Data{
-		Type:   datatypes.ARRAY,
-		Value:  "",
-		Values: values,
-	}
-
-	return data.GetRawOrMarshall()
+	return datatypes.ConstructArray(arr).Marshall()
 }
+
 var emptyRdb = "524544495330303131fa0972656469732d76657205372e322e30fa0a72656469732d62697473c040fa056374696d65c26d08bc65fa08757365642d6d656dc2b0c41000fa08616f662d62617365c000fff06e3bfec0ff5aa2"
+
 func EncodeRDB() []byte {
 	bytes, _ := hex.DecodeString(emptyRdb)
 	return []byte(fmt.Sprintf("$%v\r\n%v", len(bytes), string(bytes)))

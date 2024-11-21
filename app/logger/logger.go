@@ -18,7 +18,7 @@ type FieldAlias = zapcore.Field
 
 func New() ILogger {
 	config := zap.Config{
-		Level:       zap.NewAtomicLevelAt(zap.InfoLevel),
+		Level:       zap.NewAtomicLevelAt(zap.DebugLevel),
 		Development: true,
 		Encoding:    "console", // Use console encoding for string format
 		EncoderConfig: zapcore.EncoderConfig{

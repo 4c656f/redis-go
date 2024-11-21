@@ -13,6 +13,8 @@ const (
 	BULK_STRING   DataTypeEnum = '$'
 	SIMPLE_STRING DataTypeEnum = '+'
 	SIMPLE_ERROR  DataTypeEnum = '-'
+	INT           DataTypeEnum = ':'
+	NULL          DataTypeEnum = '!'
 )
 
 var commandType = map[byte]DataTypeEnum{
@@ -20,6 +22,7 @@ var commandType = map[byte]DataTypeEnum{
 	'$': BULK_STRING,
 	'+': SIMPLE_STRING,
 	'-': SIMPLE_ERROR,
+	':': INT,
 }
 
 var CLFR = "\r\n"
@@ -37,13 +40,13 @@ type Data struct {
 }
 
 func (d *Data) IsArg() bool {
-	if d != nil && d.Type == BULK_STRING{
+	if d != nil && d.Type == BULK_STRING {
 		return true
 	}
 	return false
 }
 
-func (d Data) Marshall() []byte {
+func (d Data) CounstructMarshall() []byte {
 	switch d.Type {
 	case SIMPLE_ERROR:
 		return d.marshallSimpleError()
@@ -53,15 +56,19 @@ func (d Data) Marshall() []byte {
 		return d.marshallBulkString()
 	case ARRAY:
 		return d.marshallArray()
+	case INT:
+		return d.marshallInt()
+	case NULL:
+		return d.marshallNull()
 	}
 	return nil
 }
 
-func (d *Data) GetRawOrMarshall() []byte {
+func (d Data) Marshall() []byte {
 	if d.Raw != nil {
 		return d.Raw
 	}
-	raw := d.Marshall()
+	raw := d.CounstructMarshall()
 	d.Raw = raw
 	return raw
 }
@@ -72,6 +79,18 @@ func (d Data) marshallSimpleString() []byte {
 	out = append(out, d.Value...)
 	out = append(out, CLFR...)
 	return out
+}
+
+func (d Data) marshallInt() []byte {
+	out := make([]byte, 0)
+	out = append(out, byte(INT))
+	out = append(out, d.Value...)
+	out = append(out, CLFR...)
+	return out
+}
+
+func (d Data) marshallNull() []byte {
+	return []byte(fmt.Sprintf("$-1\r\n"))
 }
 
 func (d Data) marshallBulkString() []byte {
@@ -107,8 +126,66 @@ func (d Data) marshallSimpleError() []byte {
 	return out
 }
 
+func ConstructSimpleError(error string) Data {
+	return Data{
+		Type:  SIMPLE_ERROR,
+		Value: error,
+	}
+}
+
+func ConstructBuldString(value string) *Data {
+	return &Data{
+		Type:  BULK_STRING,
+		Value: value,
+	}
+}
+
+func ConstructArray(arr []string) *Data {
+	values := make([]*Data, len(arr))
+
+	for i, str := range arr {
+		values[i] = &Data{
+			Value: str,
+			Type:  BULK_STRING,
+		}
+	}
+
+	data := Data{
+		Type:   ARRAY,
+		Value:  "",
+		Values: values,
+	}
+
+	return &data
+}
+
+func ConstructArrayFromData(arr []*Data) *Data {
+	data := Data{
+		Type:   ARRAY,
+		Value:  "",
+		Values: arr,
+	}
+	return &data
+}
+
+func ConstructInt(num int) *Data {
+	return &Data{
+		Type:  INT,
+		Value: strconv.Itoa(num),
+	}
+}
+
+func ConstructNull() *Data {
+	return &Data{
+		Type: NULL,
+	}
+}
+
 func (d Data) Len() int {
-	return len(d.Raw)
+	if d.Raw != nil {
+		return len(d.Raw)
+	}
+	return len(d.Marshall())
 }
 
 func (d Data) String() string {

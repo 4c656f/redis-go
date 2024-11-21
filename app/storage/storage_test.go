@@ -1,4 +1,5 @@
 package storage
+
 import (
 	"testing"
 	"time"
@@ -7,7 +8,7 @@ import (
 func TestStorage_SetAndGet(t *testing.T) {
 	storage := New()
 
-	err := storage.Set("key1", "value1")
+	err := storage.Set("key1", NewStringValue("value1"))
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -38,7 +39,7 @@ func TestStorage_GetNonExistentKey(t *testing.T) {
 func TestStorage_SetExpKey(t *testing.T) {
 	storage := New()
 
-	err := storage.SetExp("key1", "value1", 1000) // 1 second
+	err := storage.SetExp("key1", NewStringValue("value1"), 1000) // 1 second
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -69,7 +70,7 @@ func TestStorage_SetExpKey(t *testing.T) {
 func TestStorage_Delete(t *testing.T) {
 	storage := New()
 
-	err := storage.Set("key1", "value1")
+	err := storage.Set("key1", NewStringValue("value1"))
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}

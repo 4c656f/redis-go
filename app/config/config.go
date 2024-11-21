@@ -37,7 +37,9 @@ type Config struct {
 
 // server part of config
 type serverConfig struct {
-	port uint16
+	port       uint16
+	dir        string
+	dbFileName string
 }
 
 func (this *serverConfig) GetServerPort() uint16 {
@@ -117,10 +119,10 @@ func (this *replicationConfig) getMasterInfo() []types.Kv {
 
 // construct new config, parse flags from cli, applies replication info
 func New() (*Config, error) {
-	port := getPort()
-	replicaOfFlag := getRole()
+	flags := NewConfigFlags()
 	flag.Parse()
-	role, replicaOf, err := parseReplicaOf(*replicaOfFlag)
+
+	role, replicaOf, err := parseReplicaOf(*flags.role)
 	if err != nil {
 		return nil, err
 	}
@@ -131,16 +133,27 @@ func New() (*Config, error) {
 	replicationConifg.applyReplId()
 
 	config := &Config{
-		serverConfig{
-			port: uint16(*port),
+		server: serverConfig{
+			port:       uint16(*flags.port),
+			dbFileName: *flags.dbFileName,
+			dir:        *flags.dir,
 		},
-		&replicationConifg,
+		replication: &replicationConifg,
 	}
+
 	return config, nil
 }
 
 func (this *Config) GetServerPort() uint16 {
 	return this.server.GetServerPort()
+}
+
+func (this *Config) GetServerDbDir() string {
+	return this.server.dir
+}
+
+func (this *Config) GetServerDbFileName() string {
+	return this.server.dbFileName
 }
 
 func (this *Config) GetAllInfo() []types.Kv {
@@ -165,12 +178,24 @@ func (this *Config) GetRole() RoleEnum {
 	return this.replication.GetRole()
 }
 
-func getPort() *int {
-	return flag.Int("port", 6379, "defines port")
+func (this *Config) ShouldRespondOnCommand() bool {
+	return this.replication.GetRole() == MASTER
 }
 
-func getRole() *string {
-	return flag.String("replicaof", "", "defines is server are replica or master")
+type ConfigFlags struct {
+	port       *int
+	role       *string
+	dir        *string
+	dbFileName *string
+}
+
+func NewConfigFlags() ConfigFlags {
+	return ConfigFlags{
+		port:       flag.Int("port", 6379, "defines port"),
+		role:       flag.String("replicaof", "", "defines is server are replica or master"),
+		dir:        flag.String("dir", "", "defines rdb file path"),
+		dbFileName: flag.String("dbfilename", "", "defines rdb file name"),
+	}
 }
 
 func parseMasterHostAndPort(replicaOfFlag string) (host string, port uint16, err error) {

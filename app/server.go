@@ -11,6 +11,8 @@ import (
 	"github.com/codecrafters-io/redis-starter-go/app/executor"
 	"github.com/codecrafters-io/redis-starter-go/app/handshake"
 	"github.com/codecrafters-io/redis-starter-go/app/logger"
+	"github.com/codecrafters-io/redis-starter-go/app/offset_counter"
+	"github.com/codecrafters-io/redis-starter-go/app/rdb"
 	"github.com/codecrafters-io/redis-starter-go/app/replicas_storage"
 	"github.com/codecrafters-io/redis-starter-go/app/storage"
 )
@@ -40,13 +42,20 @@ func NewServer() *Server {
 
 	storage := storage.New()
 	config, err := config.New()
+	counter := offset_counter.New()
 	repl_storage := replicas_storage.New(config)
 	if err != nil {
 		logger.Logger.Fatal("server configure error:", logger.String("error", err.Error()))
 		os.Exit(1)
 	}
-	executor := executor.New(storage, config)
-	processor := conn_processor.New(repl_storage, executor)
+	executor := executor.New(counter, repl_storage, storage, config)
+	processor := conn_processor.NewMasterProcessor(repl_storage, executor)
+
+	err = rdb.LoadRdbFromFile(config, storage)
+	if err != nil {
+		logger.Logger.Error("load rdb error", logger.String("error", err.Error()))
+	}
+
 	server := Server{
 		storage:          storage,
 		executor:         executor,
@@ -61,8 +70,12 @@ func (this *Server) SendHandShake() error {
 	if this.GetConfig().GetRole() != config.SLAVE {
 		return nil
 	}
-	replicaProcessor := conn_processor.New(this.replicas_storage, this.executor)
-	err := handshake.SendHandshake(this.config, replicaProcessor)
+	conn, reader, err := handshake.SendHandshake(this.config)
+	replicaProcessor := conn_processor.NewReplicaProcessor(this.executor, reader)
+	if err != nil {
+		return err
+	}
+	go replicaProcessor.Process(conn)
 	return err
 }
 

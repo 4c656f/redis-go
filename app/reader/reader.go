@@ -47,6 +47,8 @@ func (this *Reader) ReadStreamAcordDataType(dataType datatypes.DataTypeEnum) (da
 		data, raw, err = this.ReadSimpleString()
 	case datatypes.BULK_STRING:
 		data, raw, err = this.ReadString()
+	case datatypes.INT:
+		data, raw, err = this.ReadInt()
 	default:
 		return nil, nil, fmt.Errorf("Unknown datatype: %v", dataType)
 	}
@@ -137,6 +139,20 @@ func (this *Reader) ReadString() (data *datatypes.Data, raw []byte, err error) {
 	return &datatypes.Data{
 		Type:  datatypes.BULK_STRING,
 		Value: string(stringRaw[:stringLen]),
+	}, rawRet, nil
+}
+
+func (this *Reader) ReadInt() (data *datatypes.Data, raw []byte, err error) {
+	intRaw, _, err := this.rd.ReadLine()
+	if err != nil {
+		return nil, nil, err
+	}
+	rawRet := []byte{}
+	rawRet = append(rawRet, intRaw...)
+	rawRet = append(rawRet, datatypes.CLFR...)
+	return &datatypes.Data{
+		Type:  datatypes.BULK_STRING,
+		Value: string(intRaw),
 	}, rawRet, nil
 }
 

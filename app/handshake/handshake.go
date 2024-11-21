@@ -7,28 +7,27 @@ import (
 	"strconv"
 
 	"github.com/codecrafters-io/redis-starter-go/app/command"
-	"github.com/codecrafters-io/redis-starter-go/app/conn_processor"
+	replconfcommand "github.com/codecrafters-io/redis-starter-go/app/commands/repl_conf_command"
 	"github.com/codecrafters-io/redis-starter-go/app/config"
 	"github.com/codecrafters-io/redis-starter-go/app/logger"
 	"github.com/codecrafters-io/redis-starter-go/app/reader"
 )
 
 type Handshake struct {
-	config    *config.Config
-	con       net.Conn
-	reader    reader.Reader
-	processor conn_processor.ConnProcessor
+	config *config.Config
+	con    net.Conn
+	reader reader.Reader
 }
 
-func SendHandshake(config *config.Config, processor conn_processor.ConnProcessor) error {
+func SendHandshake(config *config.Config) (net.Conn, *reader.Reader, error) {
 	logger.Logger.Info("start sending handshake")
 	slaveInfo := config.GetReplicationSlaveInfo()
 	if slaveInfo == nil {
-		return fmt.Errorf("slave info is nil")
+		return nil, nil, fmt.Errorf("slave info is nil")
 	}
 	conn, err := net.Dial("tcp", fmt.Sprintf("%v:%v", slaveInfo.GetHost(), slaveInfo.GetPort()))
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 
 	rd := bufio.NewReader(conn)
@@ -36,35 +35,34 @@ func SendHandshake(config *config.Config, processor conn_processor.ConnProcessor
 	reader := reader.New(rd)
 
 	handShake := Handshake{
-		config:    config,
-		con:       conn,
-		reader:    reader,
-		processor: processor,
+		config: config,
+		con:    conn,
+		reader: reader,
 	}
 
 	err = handShake.SendHandshakeStagePing()
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 	err = handShake.SendHandshakeReplcConf()
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 	err = handShake.SendHandshakePsync()
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 	err = handShake.AcceptRdbTransfer()
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
-	go handShake.processor.Process(conn)
-	return nil
+	logger.Logger.Info("successful handshake connection with master")
+	return conn, &reader, nil
 }
 
 func (this *Handshake) SendHandshakeStagePing() error {
 	logger.Logger.Info("start sending ping")
-	wrt := command.GetPing().GetRawOrMarshall()
+	wrt := command.ConstructPing().Marshall()
 	_, err := this.con.Write(wrt)
 	if err != nil {
 		logger.Logger.Error("error while send handshake ping command", logger.String("error", err.Error()))
@@ -87,7 +85,7 @@ func (this *Handshake) SendHandshakeStagePing() error {
 
 func (this *Handshake) SendHandshakeReplcConf() error {
 	strPort := strconv.Itoa(int(this.config.GetServerPort()))
-	_, err := this.con.Write(command.GetReplConf("listening-port", strPort).GetRawOrMarshall())
+	_, err := this.con.Write(command.ConstructReplConf(replconfcommand.ListeningPort, strPort).Marshall())
 	if err != nil {
 		logger.Logger.Error("Error writing replconf handshake", logger.String("error", err.Error()))
 		return err
@@ -103,7 +101,7 @@ func (this *Handshake) SendHandshakeReplcConf() error {
 		return fmt.Errorf("Recieve non ok response on replconf: %v", cmd.Type)
 	}
 
-	_, err = this.con.Write(command.GetReplConf("capa", "psync2").GetRawOrMarshall())
+	_, err = this.con.Write(command.ConstructReplConf(replconfcommand.Capa, "psync2").Marshall())
 	if err != nil {
 		return err
 	}
@@ -122,7 +120,8 @@ func (this *Handshake) SendHandshakeReplcConf() error {
 }
 
 func (this *Handshake) SendHandshakePsync() error {
-	_, err := this.con.Write(command.GetPsync("?", "-1").GetRawOrMarshall())
+	logger.Logger.Info("start sending psync")
+	_, err := this.con.Write(command.ConstructPsync("?", "-1").Marshall())
 	if err != nil {
 		return err
 	}
@@ -147,5 +146,6 @@ func (this *Handshake) SendHandshakePsync() error {
 }
 
 func (this *Handshake) AcceptRdbTransfer() error {
+	logger.Logger.Info("start accepting rdb transfer")
 	return this.reader.ReadRdb()
 }

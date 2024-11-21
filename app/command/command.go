@@ -5,7 +5,15 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/codecrafters-io/redis-starter-go/app/commands"
+	infocommand "github.com/codecrafters-io/redis-starter-go/app/commands/info_command"
+	replconfcommand "github.com/codecrafters-io/redis-starter-go/app/commands/repl_conf_command"
+	"github.com/codecrafters-io/redis-starter-go/app/commands/type_command"
+	xaddcommand "github.com/codecrafters-io/redis-starter-go/app/commands/xadd_command"
+	xrangecommand "github.com/codecrafters-io/redis-starter-go/app/commands/xrange_command"
+	xreadcommand "github.com/codecrafters-io/redis-starter-go/app/commands/xread_command"
 	"github.com/codecrafters-io/redis-starter-go/app/data_types"
+	"github.com/codecrafters-io/redis-starter-go/app/logger"
 )
 
 type CommandEnum string
@@ -17,22 +25,23 @@ const (
 	SET        = "SET"
 	GET        = "GET"
 	INFO       = "INFO"
+	CONFIG     = "CONFIG"
 	REPLCONF   = "REPLCONF"
 	OK         = "OK"
 	PSYNC      = "PSYNC"
 	FULLRESYNC = "FULLRESYNC"
-)
-
-type InfoEnum string
-
-const (
-	ALL         = "ALL"
-	REPLICATION = "REPLICATION"
+	WAIT       = "WAIT"
+	KEYS       = "KEYS"
+	TYPE       = "TYPE"
+	XADD       = "XADD"
+	XRANGE     = "XRANGE"
+	XREAD      = "XREAD"
 )
 
 type Command struct {
 	Type CommandEnum
 	Raw  *datatypes.Data
+	Args commands.CommandArgs
 }
 
 func DataTypeToCommand(d *datatypes.Data) (cmd *Command, err error) {
@@ -56,6 +65,10 @@ func DataTypeToCommand(d *datatypes.Data) (cmd *Command, err error) {
 	out := &Command{}
 	out.Type = commandType
 	out.Raw = d
+	err = out.ParseArgs()
+	if err != nil {
+		logger.Logger.Error("Error parsing args", logger.String("error", err.Error()))
+	}
 	return out, nil
 }
 
@@ -71,22 +84,41 @@ func HandleSimpleStringCommand(d *datatypes.Data) (cmd *Command, err error) {
 	return out, nil
 }
 
+func (this *Command) Marshall() []byte {
+	return this.Raw.Marshall()
+}
+
 func (this *Command) IsWriteCommand() bool {
 	return this.Type == SET
 }
 
 func (this *Command) IsNeedAddReplica() bool {
-	return this.Type == REPLCONF
+	if this.Type != REPLCONF {
+		return false
+	}
+	arg, _ := this.Args.GetArgValue(replconfcommand.ListeningPort)
+	return arg != nil
 }
 
-func GetSimpleOk() *datatypes.Data {
-	return &datatypes.Data{
-		Type:  datatypes.SIMPLE_STRING,
-		Value: "OK",
+func (this *Command) IsNeedToRepondeAck() bool {
+	if this.Type != REPLCONF {
+		return false
+	}
+	arg, _ := this.Args.GetArgValue(replconfcommand.GetAck)
+	return arg != nil
+}
+
+func ConstructSimpleOk() *Command {
+	return &Command{
+		Type: OK,
+		Raw: &datatypes.Data{
+			Type:  datatypes.SIMPLE_STRING,
+			Value: "OK",
+		},
 	}
 }
 
-func GetPing() *datatypes.Data {
+func ConstructPing() *datatypes.Data {
 	return &datatypes.Data{
 		Type: datatypes.ARRAY,
 		Values: []*datatypes.Data{{
@@ -96,7 +128,7 @@ func GetPing() *datatypes.Data {
 	}
 }
 
-func GetPsync(replId string, offset string) *datatypes.Data {
+func ConstructPsync(replId string, offset string) *datatypes.Data {
 	return &datatypes.Data{
 		Type: datatypes.ARRAY,
 		Values: []*datatypes.Data{{
@@ -112,7 +144,7 @@ func GetPsync(replId string, offset string) *datatypes.Data {
 	}
 }
 
-func GetReplConf(args ...string) *datatypes.Data {
+func ConstructReplConf(args ...string) *Command {
 	constructedArgs := make([]*datatypes.Data, len(args)+1)
 	constructedArgs[0] = &datatypes.Data{
 		Type:  datatypes.BULK_STRING,
@@ -124,16 +156,19 @@ func GetReplConf(args ...string) *datatypes.Data {
 			Value: a,
 		}
 	}
-	return &datatypes.Data{
+	return &Command{Type: REPLCONF, Raw: &datatypes.Data{
 		Type:   datatypes.ARRAY,
 		Values: constructedArgs,
-	}
+	}}
 }
 
-func GetFullResync(id string, offset int) *datatypes.Data {
-	return &datatypes.Data{
-		Type:  datatypes.SIMPLE_STRING,
-		Value: fmt.Sprintf("%v %v %v", string(FULLRESYNC), id, strconv.Itoa(offset)),
+func ConstructFullResync(id string, offset int) *Command {
+	return &Command{
+		Type: FULLRESYNC,
+		Raw: &datatypes.Data{
+			Type:  datatypes.SIMPLE_STRING,
+			Value: fmt.Sprintf("%v %v %v", string(FULLRESYNC), id, strconv.Itoa(offset)),
+		},
 	}
 }
 
@@ -143,11 +178,18 @@ var commandMap = map[string]CommandEnum{
 	"ECHO":       ECHO,
 	"SET":        SET,
 	"GET":        GET,
+	"CONFIG":     CONFIG,
 	"INFO":       INFO,
 	"REPLCONF":   REPLCONF,
 	"OK":         OK,
 	"PSYNC":      PSYNC,
 	"FULLRESYNC": FULLRESYNC,
+	"WAIT":       WAIT,
+	"KEYS":       KEYS,
+	"TYPE":       TYPE,
+	"XADD":       XADD,
+	"XRANGE":     XRANGE,
+	"XREAD":      XREAD,
 }
 
 func GetCommandAccordName(name string) (cmd CommandEnum, ok bool) {
@@ -247,41 +289,52 @@ func (t Command) GetEchoArgs() (args *EchoArgs, err error) {
 	return out, nil
 }
 
-type InfoArgs struct {
-	Type InfoEnum
+type WaitArgs struct {
+	ReplicaCount int
+	Timeout      int
 }
 
-func (t Command) GetInfoArgs() (args *InfoArgs, err error) {
+func (t Command) GetWaitArgs() (args *WaitArgs, err error) {
+	if t.Raw == nil || t.Raw.Values == nil {
+		return nil, fmt.Errorf("GetSetArgs Error: nil raw data")
+	}
+	values := t.Raw.Values
+	if len(values) < 3 {
+		return nil, fmt.Errorf("GetWaitArgs Error: not enough values to construct wait args")
+	}
+	out := &WaitArgs{}
+
+	replCount := values[1]
+	timeoutStr := values[2]
+	replCountNum, err := strconv.Atoi(replCount.Value)
+	if err != nil {
+		return nil, err
+	}
+	out.ReplicaCount = replCountNum
+	timeoutInt, err := strconv.Atoi(timeoutStr.Value)
+	if err != nil {
+		return nil, err
+	}
+	out.Timeout = timeoutInt
+	return out, nil
+}
+
+func (t Command) GetInfoArgs() (args commands.CommandArgs, err error) {
 	if t.Raw == nil || t.Raw.Values == nil {
 		return nil, fmt.Errorf("GetSetArgs Error: nil raw data")
 	}
 	values := t.Raw.Values
 	if len(values) < 2 {
-		return &InfoArgs{
-			Type: ALL,
-		}, nil
+		return infocommand.NewInfoArgs(infocommand.ALL), nil
 	}
-	out := &InfoArgs{}
-
 	info := values[1]
 	if !info.IsArg() {
 		return nil, fmt.Errorf("GetSetArgs Error: invalid set key argument")
 	}
-	switch strings.ToUpper(info.Value) {
-	case REPLICATION:
-		out.Type = REPLICATION
-	default:
-		return nil, fmt.Errorf("GetInfoArgs Error: unknown info type")
-	}
-
-	return out, nil
+	return infocommand.NewInfoArgs(infocommand.InfoEnum(info.Value)), nil
 }
 
-type ReplConfPortArgs struct {
-	Port int
-}
-
-func (t Command) GetReplConfPortArgs() (args *ReplConfPortArgs, err error) {
+func (t Command) GetReplArgs() (args commands.CommandArgs, err error) {
 	if t.Raw == nil || t.Raw.Values == nil {
 		return nil, fmt.Errorf("GetSetArgs Error: nil raw data")
 	}
@@ -289,17 +342,85 @@ func (t Command) GetReplConfPortArgs() (args *ReplConfPortArgs, err error) {
 	if len(values) < 3 {
 		return nil, fmt.Errorf("GetReplConfPortArgs Error: not enough values to construct repl conf port args")
 	}
-	out := &ReplConfPortArgs{}
+	argsMap := make(map[replconfcommand.ReplConfArgEnum]string, len(values)-1)
 
-	port := values[2]
-	if !port.IsArg() {
-		return nil, fmt.Errorf("GetReplConfPortArgs Error: invalid port argument")
+	for i := 1; i < len(values)-1; i += 2 {
+		name := values[i].Value
+		value := values[i+1].Value
+		argsMap[replconfcommand.ReplConfArgEnum(name)] = value
 	}
-	nPort, err := strconv.Atoi(port.Value)
-	if err != nil {
-		return nil, fmt.Errorf("GetReplConfPortArgs Error: cannot convert port to int: %v", err.Error())
-	}
-	out.Port = nPort
 
+	out, err := replconfcommand.NewReplConfArgsFromMap(argsMap)
+	return out, err
+}
+
+func (t *Command) ParseArgs() error {
+	switch t.Type {
+	case REPLCONF:
+		args, err := t.GetReplArgs()
+		if err != nil {
+			return fmt.Errorf("Error parsing replconf args: %w", err)
+		}
+		t.Args = args
+	case INFO:
+		args, err := t.GetInfoArgs()
+		if err != nil {
+			return fmt.Errorf("Error parsing info args: %w", err)
+		}
+		t.Args = args
+	case XADD:
+		args, err := xaddcommand.ParseXaddArgs(t.Raw.Values)
+		if err != nil {
+			return fmt.Errorf("Error parsing xadd args: %w", err)
+		}
+		t.Args = args
+	case TYPE:
+		args, err := type_command.NewTypeArgs(t.Raw.Values)
+		if err != nil {
+			return fmt.Errorf("Error parsing type args: %w", err)
+		}
+		t.Args = args
+	case XRANGE:
+		args, err := xrangecommand.ParseXrangeArgs(t.Raw.Values)
+		if err != nil {
+			return fmt.Errorf("Error parsing xrange args: %w", err)
+		}
+		t.Args = args
+	case XREAD:
+		args, err := xreadcommand.ParseXreadArgs(t.Raw.Values)
+		if err != nil {
+			return fmt.Errorf("Error parsing xread args: %w", err)
+		}
+		t.Args = args
+	}
+
+	return nil
+}
+
+type ConfigArgEnum string
+
+const (
+	Dir        = "dir"
+	Dbfilename = "dbfilename"
+)
+
+type ConfigArgs struct {
+	Args []ConfigArgEnum
+}
+
+func (t Command) GetConfigArgs() (args *ConfigArgs, err error) {
+	if t.Raw == nil || t.Raw.Values == nil {
+		return nil, fmt.Errorf("GetSetArgs Error: nil raw data")
+	}
+	values := t.Raw.Values
+	if len(values) < 3 {
+		return nil, fmt.Errorf("GetReplConfPortArgs Error: not enough values to construct repl conf port args")
+	}
+	argsSlice := make([]ConfigArgEnum, len(values)-2)
+	out := &ConfigArgs{Args: argsSlice}
+	for i := 2; i < len(values); i++ {
+		name := values[i].Value
+		argsSlice[i-2] = ConfigArgEnum(name)
+	}
 	return out, nil
 }
