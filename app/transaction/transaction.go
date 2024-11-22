@@ -24,11 +24,13 @@ type GlobalTransaction struct {
 }
 
 func NewGlobalTransactionProcessor(executor executor.CommandExecutor) *GlobalTransaction {
-	return nil
+	return &GlobalTransaction{
+		executor: executor,
+	}
 }
 
 func shouldLockGlobalTransaction(cmd *command.Command) bool {
-	return cmd.Type == command.MULTI
+	return cmd.Type == command.EXEC
 }
 
 func (t *GlobalTransaction) ExecuteCmd(cmd *command.Command, tr ConnTransaction) *datatypes.Data {
@@ -40,7 +42,8 @@ func (t *GlobalTransaction) ExecuteCmd(cmd *command.Command, tr ConnTransaction)
 }
 
 func NewConnectionTransactionProcessor() ConnTransaction {
-	return &ConnTransactionImpl{}
+	return &ConnTransactionImpl{
+	}
 }
 
 var transactionalCommands = map[command.CommandEnum]bool{

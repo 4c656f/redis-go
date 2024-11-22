@@ -72,7 +72,7 @@ func (this *Reader) ReadRdb() error {
 	initType, err := this.rd.ReadByte()
 	dataType, _ := datatypes.GetDataTypeAcordType(initType)
 	if dataType != datatypes.BULK_STRING {
-		return fmt.Errorf("Wrong datatype: %v", string(dataType))
+		return fmt.Errorf("Wrong datatype: %v", string(initType))
 	}
 	stringLen, _, err := this.ReadLen()
 	if err != nil {
