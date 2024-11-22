@@ -1,11 +1,13 @@
 package transaction
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/codecrafters-io/redis-starter-go/app/command"
 	datatypes "github.com/codecrafters-io/redis-starter-go/app/data_types"
 	"github.com/codecrafters-io/redis-starter-go/app/executor"
+	"github.com/codecrafters-io/redis-starter-go/app/logger"
 )
 
 type ConnTransaction interface {
@@ -42,8 +44,7 @@ func (t *GlobalTransaction) ExecuteCmd(cmd *command.Command, tr ConnTransaction)
 }
 
 func NewConnectionTransactionProcessor() ConnTransaction {
-	return &ConnTransactionImpl{
-	}
+	return &ConnTransactionImpl{}
 }
 
 var transactionalCommands = map[command.CommandEnum]bool{
@@ -61,14 +62,14 @@ func (t *ConnTransactionImpl) ShouldConsumeCommand(cmd *command.Command) bool {
 }
 
 func (t *ConnTransactionImpl) ExecuteCmd(cmd *command.Command, globalExecutor executor.CommandExecutor) *datatypes.Data {
-	switch cmd.Type{
-		case command.MULTI:
+	switch cmd.Type {
+	case command.MULTI:
 		return t.ProcessMulti(cmd)
-		case command.DISCARD:
+	case command.DISCARD:
 		return t.ProcessDiscard(cmd)
-		case command.EXEC:
+	case command.EXEC:
 		return t.ProcessExec(cmd, globalExecutor)
-		default:
+	default:
 		t.queued = append(t.queued, cmd)
 		return datatypes.ConstructSimpleString("QUEUED")
 	}
@@ -92,7 +93,12 @@ func (t *ConnTransactionImpl) ProcessExec(cmd *command.Command, globalExecutor e
 	if !t.isTransactionStarted {
 		return datatypes.ConstructSimpleError(ExecWithoutMultiError.Error())
 	}
+	logger.Logger.Debug("start executing transaction", logger.String("queued", fmt.Sprintf("%v", t.queued)))
 	n := len(t.queued)
+	if n <= 0 {
+		logger.Logger.Debug("return empty array from transaction")
+		return datatypes.ConstructArrayFromData([]*datatypes.Data{})
+	}
 	results := make([]*datatypes.Data, n)
 	for i := 0; i < n; i++ {
 		results[i] = globalExecutor.ExecuteCmd(t.queued[i], true)
