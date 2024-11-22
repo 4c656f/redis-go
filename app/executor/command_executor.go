@@ -23,14 +23,13 @@ import (
 	"github.com/codecrafters-io/redis-starter-go/app/types"
 )
 
-type ExecutionResult = ([][]byte)
 
 type CommandProcessor interface {
 	ProcessCmd(cmd *command.Command) (*datatypes.Data, error)
 }
 
 type CommandExecutor interface {
-	ExecuteCmd(cmd *command.Command, shouldRespond bool) ExecutionResult
+	ExecuteCmd(cmd *command.Command, shouldRespond bool) *datatypes.Data
 }
 
 type executor struct {
@@ -54,7 +53,7 @@ func New(
 	}
 }
 
-type ExecuteFunc = func(*executor, *command.Command) (ExecutionResult, error)
+type ExecuteFunc = func(*executor, *command.Command) (*datatypes.Data, error)
 
 var commantToExecuteMap = map[command.CommandEnum]ExecuteFunc{
 	command.SET:      (*executor).ExecuteSet,
@@ -78,37 +77,35 @@ func (this *executor) mathcCommandToExecuteFunc(cmd *command.Command) (exec Exec
 	return exec, ok
 }
 
-func (this *executor) ExecuteCmd(cmd *command.Command, shouldRespond bool) ExecutionResult {
+func (this *executor) ExecuteCmd(cmd *command.Command, shouldRespond bool) *datatypes.Data {
 	logger.Logger.Info("execute command", logger.String("command", string(cmd.Type)))
 	exec, ok := this.mathcCommandToExecuteFunc(cmd)
 	if !ok {
-		raw := encoder.EncodeSimpleError(fmt.Sprintf("not found command implimentation %v", cmd.Type))
-		return ExecutionResult{raw}
+		return datatypes.ConstructSimpleError(fmt.Sprintf("not found command implimentation %v", cmd.Type))
 	}
 	counterRes, err := this.counter.ProcessCmd(cmd)
 	if err != nil {
-		raw := encoder.EncodeSimpleError(err.Error())
-		return ExecutionResult{raw}
+		return datatypes.ConstructSimpleError(err.Error())
 	}
 	if counterRes != nil {
-		return ExecutionResult{counterRes.Marshall()}
+		return counterRes
 	}
 	res, err := exec(this, cmd)
 	if !shouldRespond {
 		return nil
 	}
 	if err != nil {
-		raw := encoder.EncodeSimpleError(err.Error())
-		return ExecutionResult{raw}
+		return datatypes.ConstructSimpleError(err.Error())
 	}
 	return res
 }
 
-func (this *executor) ExecuteSet(cmd *command.Command) (ExecutionResult, error) {
+func (this *executor) ExecuteSet(cmd *command.Command) (*datatypes.Data, error) {
 	args, err := cmd.GetSetArgs()
 	if err != nil {
 		return nil, err
 	}
+
 	intVal, err := strconv.Atoi(args.Value)
 	var constructedEntrie storage.StorageValue
 	if err != nil {
@@ -116,25 +113,27 @@ func (this *executor) ExecuteSet(cmd *command.Command) (ExecutionResult, error) 
 	} else {
 		constructedEntrie = storage.NewIntValue(intVal)
 	}
+
 	if args.Px != -1 {
 		err = this.storage.SetExp(args.Key, constructedEntrie, args.Px)
 	} else {
 		err = this.storage.Set(args.Key, constructedEntrie)
 		logger.Logger.Debug("set storageval", logger.String("key", args.Key), logger.String("value", args.Value))
 	}
+
 	if err != nil {
 		return nil, err
 	}
-	raw := encoder.EncodeSimpleString("OK")
-	return ExecutionResult{raw}, nil
+
+	return datatypes.ConstructSimpleString("OK"), nil
 }
 
-func (this *executor) ExecuteGet(cmd *command.Command) (ExecutionResult, error) {
-
+func (this *executor) ExecuteGet(cmd *command.Command) (*datatypes.Data, error) {
 	getArgs, err := cmd.GetGetArgs()
 	if err != nil {
 		return nil, err
 	}
+
 	val, err := this.storage.Get(getArgs.Key)
 	logger.Logger.Debug("get storageval", logger.String("key", getArgs.Key), logger.String("value", val))
 	if err != nil {
@@ -142,28 +141,25 @@ func (this *executor) ExecuteGet(cmd *command.Command) (ExecutionResult, error) 
 	}
 
 	if val == "" {
-		raw := encoder.EncodeNull()
-		return ExecutionResult{raw}, nil
+		return datatypes.ConstructNull(), nil
 	}
-	raw := encoder.EncodeBulkString(val)
-	return ExecutionResult{raw}, nil
+
+	return datatypes.ConstructBulkString(val), nil
 }
 
-func (this *executor) ExecutePing(cmd *command.Command) (ExecutionResult, error) {
-	raw := encoder.EncodeSimpleString("PONG")
-	return ExecutionResult{raw}, nil
+func (this *executor) ExecutePing(cmd *command.Command) (*datatypes.Data, error) {
+	return datatypes.ConstructSimpleString("PONG"), nil
 }
 
-func (this *executor) ExecuteEcho(cmd *command.Command) (ExecutionResult, error) {
+func (this *executor) ExecuteEcho(cmd *command.Command) (*datatypes.Data, error) {
 	echo, err := cmd.GetEchoArgs()
 	if err != nil {
 		return nil, err
 	}
-	raw := encoder.EncodeBulkString(echo.Echo)
-	return ExecutionResult{raw}, nil
+	return datatypes.ConstructBulkString(echo.Echo), nil
 }
 
-func (this *executor) ExecuteInfo(cmd *command.Command) (ExecutionResult, error) {
+func (this *executor) ExecuteInfo(cmd *command.Command) (*datatypes.Data, error) {
 	args, ok := cmd.Args.GetArgValue(infocommand.Type)
 	if !ok {
 		return nil, commands.GetUnknowArgError
@@ -176,17 +172,15 @@ func (this *executor) ExecuteInfo(cmd *command.Command) (ExecutionResult, error)
 	switch infoType {
 	case infocommand.REPLICATION:
 		repInfo := this.config.GetReplicationInfo()
-		raw := encoder.EncodeBulkString(encoder.EncodeKvs(repInfo))
-		return ExecutionResult{raw}, nil
+		return datatypes.ConstructBulkString(encoder.EncodeKvs(repInfo)), nil
 	case infocommand.ALL:
 		allInfo := this.config.GetAllInfo()
-		raw := encoder.EncodeBulkString(encoder.EncodeKvs(allInfo))
-		return ExecutionResult{raw}, nil
+		return datatypes.ConstructBulkString(encoder.EncodeKvs(allInfo)), nil
 	}
 	return nil, fmt.Errorf("executing info Error: unknown info type: %v", infoType)
 }
 
-func (this *executor) ExecuteConfig(cmd *command.Command) (ExecutionResult, error) {
+func (this *executor) ExecuteConfig(cmd *command.Command) (*datatypes.Data, error) {
 	args, err := cmd.GetConfigArgs()
 	if err != nil {
 		return nil, err
@@ -201,20 +195,20 @@ func (this *executor) ExecuteConfig(cmd *command.Command) (ExecutionResult, erro
 		}
 	}
 
-	return ExecutionResult{encoder.EncodeArray(res)}, nil
+	return datatypes.ConstructArray(res), nil
 }
 
-func (this *executor) ExecuteWait(cmd *command.Command) (ExecutionResult, error) {
+func (this *executor) ExecuteWait(cmd *command.Command) (*datatypes.Data, error) {
 	res, err := this.replica_prosesor.ProcessCmd(cmd)
 
 	if err != nil {
 		return nil, err
 	}
 
-	return ExecutionResult{res.Marshall()}, nil
+	return res, nil
 }
 
-func (this *executor) ExecuteReplConf(cmd *command.Command) (ExecutionResult, error) {
+func (this *executor) ExecuteReplConf(cmd *command.Command) (*datatypes.Data, error) {
 	args, ok := cmd.Args.GetArgValue(replconfcommand.GetAck)
 	if !ok {
 		return nil, nil
@@ -232,16 +226,16 @@ func (this *executor) ExecuteReplConf(cmd *command.Command) (ExecutionResult, er
 
 	res, err := this.counter.ProcessCmd(cmd)
 
-	return ExecutionResult{res.Marshall()}, err
+	return res, err
 }
 
-func (this *executor) ExecuteKeys(cmd *command.Command) (ExecutionResult, error) {
+func (this *executor) ExecuteKeys(cmd *command.Command) (*datatypes.Data, error) {
 	res := this.storage.GetKeys()
 
-	return ExecutionResult{encoder.EncodeArray(res)}, nil
+	return datatypes.ConstructArray(res), nil
 }
 
-func (this *executor) ExecuteType(cmd *command.Command) (ExecutionResult, error) {
+func (this *executor) ExecuteType(cmd *command.Command) (*datatypes.Data, error) {
 	typeKey, ok := cmd.Args.GetArgValue(type_command.TypeKey)
 	if !ok {
 		return nil, commands.GetUnknowArgError
@@ -253,12 +247,12 @@ func (this *executor) ExecuteType(cmd *command.Command) (ExecutionResult, error)
 	}
 	res := this.storage.GetType(strTypeKey)
 	if res == "" {
-		return ExecutionResult{encoder.EncodeSimpleString("none")}, nil
+		return datatypes.ConstructSimpleString("none"), nil
 	}
-	return ExecutionResult{encoder.EncodeSimpleString(string(res))}, nil
+	return datatypes.ConstructSimpleString(string(res)), nil
 }
 
-func (this *executor) ExecuteXadd(cmd *command.Command) (ExecutionResult, error) {
+func (this *executor) ExecuteXadd(cmd *command.Command) (*datatypes.Data, error) {
 	logger.Logger.Debug("start executing xadd")
 	streamKey, ok := cmd.Args.GetArgValue(xaddcommand.Key)
 	logger.Logger.Debug("get key arg", logger.String("arg", fmt.Sprintf("%v", streamKey)))
@@ -315,17 +309,17 @@ func (this *executor) ExecuteXadd(cmd *command.Command) (ExecutionResult, error)
 	}
 	currentStream.Add(stream.NewStreamEntrieFromKv(*validEntrieid, streamKvValues))
 	logger.Logger.Debug("add entrie to stream")
-	return ExecutionResult{encoder.EncodeBulkString(validEntrieid.String())}, nil
+	return datatypes.ConstructBulkString(validEntrieid.String()), nil
 }
 
-func (this *executor) ExecuteXrange(cmd *command.Command) (ExecutionResult, error) {
+func (this *executor) ExecuteXrange(cmd *command.Command) (*datatypes.Data, error) {
 	query, err := xrangecommand.ConstructQueryFromArgs(cmd.Args)
 	if err != nil {
 		return nil, fmt.Errorf("Error constructing xrange query: %w", err)
 	}
 	streamEntrie, ok := this.storage.GetEntrie(query.Key)
 	if !ok {
-		return ExecutionResult{encoder.EncodeNull()}, nil
+		return datatypes.ConstructNull(), nil
 	}
 	selectedStream, err := streamEntrie.ToStream()
 	if err != nil {
@@ -346,10 +340,10 @@ func (this *executor) ExecuteXrange(cmd *command.Command) (ExecutionResult, erro
 		encodedEntries[i] = ent.ToDataType()
 	}
 
-	return ExecutionResult{datatypes.ConstructArrayFromData(encodedEntries).Marshall()}, nil
+	return datatypes.ConstructArrayFromData(encodedEntries), nil
 }
 
-func (this *executor) ExecuteXRead(cmd *command.Command) (ExecutionResult, error) {
+func (this *executor) ExecuteXRead(cmd *command.Command) (*datatypes.Data, error) {
 	query, err := xreadcommand.ConstructQueryFromArgs(cmd.Args)
 	if err != nil {
 		return nil, fmt.Errorf("Error constructing xread args: %w", err)
@@ -360,7 +354,7 @@ func (this *executor) ExecuteXRead(cmd *command.Command) (ExecutionResult, error
 			selectedStream, ok := this.storage.GetEntrie(q.Key)
 			if !ok {
 				results[i] = datatypes.ConstructArrayFromData([]*datatypes.Data{
-					datatypes.ConstructBuldString(q.Key),
+					datatypes.ConstructBulkString(q.Key),
 					datatypes.ConstructNull(),
 				})
 				continue
@@ -375,21 +369,19 @@ func (this *executor) ExecuteXRead(cmd *command.Command) (ExecutionResult, error
 				encodedEntries[i] = e.ToDataType()
 			}
 			results[i] = datatypes.ConstructArrayFromData([]*datatypes.Data{
-				datatypes.ConstructBuldString(q.Key),
+				datatypes.ConstructBulkString(q.Key),
 				datatypes.ConstructArrayFromData(encodedEntries),
 			})
 		}
-		return ExecutionResult{datatypes.ConstructArrayFromData(results).Marshall()}, nil
+		return datatypes.ConstructArrayFromData(results), nil
 	}
 	blockedQuery := query.Queries[0]
 	queryEntrie, ok := this.storage.GetEntrie(blockedQuery.Key)
 	if !ok {
-		return ExecutionResult{
-			datatypes.ConstructArrayFromData([]*datatypes.Data{
-				datatypes.ConstructBuldString(blockedQuery.Key),
-				datatypes.ConstructNull(),
-			}).Marshall(),
-		}, nil
+		return datatypes.ConstructArrayFromData([]*datatypes.Data{
+			datatypes.ConstructBulkString(blockedQuery.Key),
+			datatypes.ConstructNull(),
+		}), nil
 	}
 	queryStream, err := queryEntrie.ToStream()
 	if err != nil {
@@ -398,14 +390,12 @@ func (this *executor) ExecuteXRead(cmd *command.Command) (ExecutionResult, error
 	if blockedQuery.ReadType == xreadcommand.OnlyNew {
 		newEntrie := queryStream.BlockUntilNew(query.BlockedTimeout)
 		if newEntrie == nil {
-			return ExecutionResult{encoder.EncodeNull()}, nil
+			return datatypes.ConstructNull(), nil
 		}
-		return ExecutionResult{
-			datatypes.ConstructArrayFromData([]*datatypes.Data{
-				datatypes.ConstructBuldString(blockedQuery.Key),
-				datatypes.ConstructArrayFromData([]*datatypes.Data{newEntrie.ToDataType()}),
-			}).Marshall(),
-		}, nil
+		return datatypes.ConstructArrayFromData([]*datatypes.Data{
+			datatypes.ConstructBulkString(blockedQuery.Key),
+			datatypes.ConstructArrayFromData([]*datatypes.Data{newEntrie.ToDataType()}),
+		}), nil
 	}
 	existedEnties := queryStream.GetInRangeExcl(&blockedQuery.Start, nil)
 	logger.Logger.Debug("blocking stream", logger.String("entries", fmt.Sprintf("%v", existedEnties)))
@@ -413,7 +403,7 @@ func (this *executor) ExecuteXRead(cmd *command.Command) (ExecutionResult, error
 	logger.Logger.Debug("unblocking stream", logger.String("entries", fmt.Sprintf("%v", existedEnties)), logger.String("new entrie", fmt.Sprintf("%v", newEntrie)))
 	if newEntrie == nil {
 		logger.Logger.Debug("write nil")
-		return ExecutionResult{encoder.EncodeNull()}, nil
+		return datatypes.ConstructNull(), nil
 	}
 	existedEnties = append(existedEnties, newEntrie)
 	encodedQueries := make([]*datatypes.Data, len(existedEnties))
@@ -422,17 +412,13 @@ func (this *executor) ExecuteXRead(cmd *command.Command) (ExecutionResult, error
 	}
 	logger.Logger.Debug("serialize entries")
 	d := datatypes.ConstructArrayFromData([]*datatypes.Data{
-		datatypes.ConstructBuldString(blockedQuery.Key),
+		datatypes.ConstructBulkString(blockedQuery.Key),
 		datatypes.ConstructArrayFromData(encodedQueries),
 	})
-	res := ExecutionResult{
-		d.Marshall(),
-	}
-	logger.Logger.Debug("marshall res")
-	return res, nil
+	return d, nil
 }
 
-func (this *executor) ExecuteIncr(cmd *command.Command) (ExecutionResult, error) {
+func (this *executor) ExecuteIncr(cmd *command.Command) (*datatypes.Data, error) {
 	argVal, ok := cmd.Args.GetArgValue(incrcommand.IcrKey)
 	if !ok {
 		return nil, errors.New("Error IncrKey does not specified")
@@ -442,14 +428,12 @@ func (this *executor) ExecuteIncr(cmd *command.Command) (ExecutionResult, error)
 	entrie, ok := this.storage.GetEntrie(strKey)
 	if !ok {
 		this.storage.Set(strKey, storage.NewIntValue(1))
-		return ExecutionResult{datatypes.ConstructInt(1).Marshall()}, nil
+		return datatypes.ConstructInt(1), nil
 	}
 	if entrie.GetType() != storage.Int {
 		return nil, incrcommand.IncrNotIntegerTypeError
 	}
 	intVal, _ := entrie.ToInt()
 	this.storage.Set(strKey, storage.NewIntValue(intVal+1))
-	return ExecutionResult{
-		datatypes.ConstructInt(intVal + 1).Marshall(),
-	}, nil
+	return datatypes.ConstructInt(intVal + 1), nil
 }

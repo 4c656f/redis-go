@@ -38,6 +38,9 @@ const (
 	XRANGE     = "XRANGE"
 	XREAD      = "XREAD"
 	INCR       = "INCR"
+	MULTI      = "MULTI"
+	EXEC       = "EXEC"
+	DISCARD    = "DISCARD"
 )
 
 type Command struct {
@@ -193,6 +196,9 @@ var commandMap = map[string]CommandEnum{
 	"XRANGE":     XRANGE,
 	"XREAD":      XREAD,
 	"INCR":       INCR,
+	"MULTI":      MULTI,
+	"EXEC":       EXEC,
+	"DISCARD":    DISCARD,
 }
 
 func GetCommandAccordName(name string) (cmd CommandEnum, ok bool) {

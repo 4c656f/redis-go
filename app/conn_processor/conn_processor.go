@@ -10,11 +10,13 @@ import (
 	"github.com/codecrafters-io/redis-starter-go/app/logger"
 	"github.com/codecrafters-io/redis-starter-go/app/reader"
 	"github.com/codecrafters-io/redis-starter-go/app/replicas_storage"
+	"github.com/codecrafters-io/redis-starter-go/app/transaction"
 )
 
 type MasterConnProcessor struct {
 	replicas_storage *replicas_storage.ReplStorage
 	commandExecutor  executor.CommandExecutor
+	globalTransct    *transaction.GlobalTransaction
 }
 
 type ReplicaConnProcessor struct {
@@ -30,6 +32,7 @@ func NewMasterProcessor(replicas_storage *replicas_storage.ReplStorage, executor
 	return &MasterConnProcessor{
 		replicas_storage: replicas_storage,
 		commandExecutor:  executor,
+		globalTransct:    transaction.NewGlobalTransactionProcessor(executor),
 	}
 }
 
@@ -43,6 +46,8 @@ func NewReplicaProcessor(executor executor.CommandExecutor, reader *reader.Reade
 func (this *MasterConnProcessor) Process(conn net.Conn) {
 
 	reader := reader.New(bufio.NewReader(conn))
+	connTransact := transaction.NewConnectionTransactionProcessor()
+
 	for {
 		data, err := reader.ParseDataType()
 		if err != nil {
@@ -63,14 +68,13 @@ func (this *MasterConnProcessor) Process(conn net.Conn) {
 			this.replicas_storage.ProcessReplicaSync(conn, cmd)
 			return
 		}
-
+		if connTransact.ShouldConsumeCommand(cmd) {
+			conn.Write(this.globalTransct.ExecuteCmd(cmd, connTransact).Marshall())
+			return
+		}
 		output := this.commandExecutor.ExecuteCmd(cmd, true)
 		this.replicas_storage.PropagateCmd(cmd)
-		for _, res := range output {
-			logger.Logger.Debug("write res to conn", logger.String("res", string(res)))
-			conn.Write(res)
-			logger.Logger.Debug("end write to conn", logger.String("res", string(res)))
-		}
+		conn.Write(output.Marshall())
 
 	}
 	defer conn.Close()
@@ -96,9 +100,7 @@ func (this *ReplicaConnProcessor) Process(conn net.Conn) {
 		}
 		res := this.commandExecutor.ExecuteCmd(cmd, false)
 
-		for _, r := range res {
-			conn.Write(r)
-		}
+		conn.Write(res.Marshall())
 
 	}
 	conn.Close()

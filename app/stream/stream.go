@@ -263,7 +263,7 @@ func (e StreamEntrie) ToDataType() *datatypes.Data {
 	}
 
 	encodedValues := datatypes.ConstructArray(kv)
-	encodedId := datatypes.ConstructBuldString(e.Id.String())
+	encodedId := datatypes.ConstructBulkString(e.Id.String())
 
 	return datatypes.ConstructArrayFromData([]*datatypes.Data{
 		encodedId,

@@ -126,16 +126,23 @@ func (d Data) marshallSimpleError() []byte {
 	return out
 }
 
-func ConstructSimpleError(error string) Data {
-	return Data{
+func ConstructSimpleError(error string) *Data {
+	return &Data{
 		Type:  SIMPLE_ERROR,
 		Value: error,
 	}
 }
 
-func ConstructBuldString(value string) *Data {
+func ConstructBulkString(value string) *Data {
 	return &Data{
 		Type:  BULK_STRING,
+		Value: value,
+	}
+}
+
+func ConstructSimpleString(value string) *Data {
+	return &Data{
+		Type:  SIMPLE_STRING,
 		Value: value,
 	}
 }
