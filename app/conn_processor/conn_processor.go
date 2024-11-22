@@ -99,8 +99,10 @@ func (this *ReplicaConnProcessor) Process(conn net.Conn) {
 			break
 		}
 		res := this.commandExecutor.ExecuteCmd(cmd, false)
-
+		if res != nil{
 		conn.Write(res.Marshall())
+			
+		}
 
 	}
 	conn.Close()
