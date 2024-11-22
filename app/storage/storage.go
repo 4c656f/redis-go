@@ -2,6 +2,7 @@ package storage
 
 import (
 	"fmt"
+	"strconv"
 	"sync"
 	"time"
 
@@ -55,8 +56,17 @@ func (this *StorageImpl) Get(key string) (string, error) {
 		this.Delete(key)
 		return "", nil
 	}
+	t := val.GetType()
+	switch t {
+	case Int:
+		intV, _ := val.ToInt()
+		return strconv.Itoa(intV), nil
+	case String:
+		return val.ToString()
+	default:
+		return "", fmt.Errorf("Error getting args type does not supported by get: %v", t)
+	}
 
-	return val.ToString()
 }
 
 func (this *StorageImpl) GetEntrie(key string) (*StorageValue, bool) {
