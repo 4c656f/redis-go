@@ -112,9 +112,9 @@ func (this *executor) ExecuteSet(cmd *command.Command) (ExecutionResult, error) 
 	intVal, err := strconv.Atoi(args.Value)
 	var constructedEntrie storage.StorageValue
 	if err != nil {
-		constructedEntrie = storage.NewIntValue(intVal)
-	} else {
 		constructedEntrie = storage.NewStringValue(args.Value)
+	} else {
+		constructedEntrie = storage.NewIntValue(intVal)
 	}
 	if args.Px != -1 {
 		err = this.storage.SetExp(args.Key, constructedEntrie, args.Px)
