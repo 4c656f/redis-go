@@ -30,7 +30,7 @@ func NewXaddArgs(opts XaddOpts) commands.CommandArgs {
 
 func ParseXaddArgs(values []*datatypes.Data) (commands.CommandArgs, error) {
 	if len(values) < 3 {
-		return nil, NotEnoughValuesToConstructArgsError
+		return nil, commands.NotEnoughValuesToConstructArgs
 	}
 	key := values[1]
 	streamId := values[2]

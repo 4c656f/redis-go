@@ -1,8 +1,6 @@
 package type_command
 
 import (
-	"errors"
-
 	"github.com/codecrafters-io/redis-starter-go/app/commands"
 	datatypes "github.com/codecrafters-io/redis-starter-go/app/data_types"
 )
@@ -21,7 +19,7 @@ func NewTypeArgs(values []*datatypes.Data) (commands.CommandArgs, error) {
 
 func ParseTypeArgs(args commands.CommandArgs, values []*datatypes.Data) error {
 	if len(values) < 2 {
-		return errors.New("Incomplite data to construct type cmd args")
+		return commands.NotEnoughValuesToConstructArgs
 	}
 	key := values[1].Value
 	args.SetArgValue(TypeKey, commands.NewStringArgValue(key))

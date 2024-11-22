@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/codecrafters-io/redis-starter-go/app/commands"
+	incrcommand "github.com/codecrafters-io/redis-starter-go/app/commands/incr_command"
 	infocommand "github.com/codecrafters-io/redis-starter-go/app/commands/info_command"
 	replconfcommand "github.com/codecrafters-io/redis-starter-go/app/commands/repl_conf_command"
 	"github.com/codecrafters-io/redis-starter-go/app/commands/type_command"
@@ -36,6 +37,7 @@ const (
 	XADD       = "XADD"
 	XRANGE     = "XRANGE"
 	XREAD      = "XREAD"
+	INCR       = "INCR"
 )
 
 type Command struct {
@@ -190,6 +192,7 @@ var commandMap = map[string]CommandEnum{
 	"XADD":       XADD,
 	"XRANGE":     XRANGE,
 	"XREAD":      XREAD,
+	"INCR":       INCR,
 }
 
 func GetCommandAccordName(name string) (cmd CommandEnum, ok bool) {
@@ -390,6 +393,12 @@ func (t *Command) ParseArgs() error {
 		args, err := xreadcommand.ParseXreadArgs(t.Raw.Values)
 		if err != nil {
 			return fmt.Errorf("Error parsing xread args: %w", err)
+		}
+		t.Args = args
+	case INCR:
+		args, err := incrcommand.ParseIncrArgs(t.Raw.Values)
+		if err != nil {
+			return fmt.Errorf("Error parsing incr args: %w", err)
 		}
 		t.Args = args
 	}

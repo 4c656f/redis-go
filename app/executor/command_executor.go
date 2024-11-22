@@ -6,6 +6,7 @@ import (
 
 	"github.com/codecrafters-io/redis-starter-go/app/command"
 	"github.com/codecrafters-io/redis-starter-go/app/commands"
+	incrcommand "github.com/codecrafters-io/redis-starter-go/app/commands/incr_command"
 	infocommand "github.com/codecrafters-io/redis-starter-go/app/commands/info_command"
 	replconfcommand "github.com/codecrafters-io/redis-starter-go/app/commands/repl_conf_command"
 	"github.com/codecrafters-io/redis-starter-go/app/commands/type_command"
@@ -68,6 +69,7 @@ var commantToExecuteMap = map[command.CommandEnum]ExecuteFunc{
 	command.XADD:     (*executor).ExecuteXadd,
 	command.XRANGE:   (*executor).ExecuteXrange,
 	command.XREAD:    (*executor).ExecuteXRead,
+	command.INCR:     (*executor).ExecuteIncr,
 }
 
 func (this *executor) mathcCommandToExecuteFunc(cmd *command.Command) (exec ExecuteFunc, ok bool) {
@@ -340,7 +342,6 @@ func (this *executor) ExecuteXrange(cmd *command.Command) (ExecutionResult, erro
 }
 
 func (this *executor) ExecuteXRead(cmd *command.Command) (ExecutionResult, error) {
-	return ExecutionResult{encoder.EncodeNull()}, nil
 	query, err := xreadcommand.ConstructQueryFromArgs(cmd.Args)
 	if err != nil {
 		return nil, fmt.Errorf("Error constructing xread args: %w", err)
@@ -421,4 +422,26 @@ func (this *executor) ExecuteXRead(cmd *command.Command) (ExecutionResult, error
 	}
 	logger.Logger.Debug("marshall res")
 	return res, nil
+}
+
+func (this *executor) ExecuteIncr(cmd *command.Command) (ExecutionResult, error) {
+	argVal, ok := cmd.Args.GetArgValue(incrcommand.IcrKey)
+	if !ok {
+		return nil, errors.New("Error IncrKey does not specified")
+	}
+	var strKey string
+	argVal.ToType(&strKey)
+	entrie, ok := this.storage.GetEntrie(strKey)
+	if !ok {
+		this.storage.Set(strKey, storage.NewIntValue(1))
+		return ExecutionResult{datatypes.ConstructInt(1).Marshall()}, nil
+	}
+	if entrie.GetType() != storage.Int {
+		return nil, incrcommand.IncrNotIntegerTypeError
+	}
+	intVal, _ := entrie.ToInt()
+	this.storage.Set(strKey, storage.NewIntValue(intVal+1))
+	return ExecutionResult{
+		datatypes.ConstructInt(intVal + 1).Marshall(),
+	}, nil
 }

@@ -20,7 +20,7 @@ const (
 
 func ParseXreadArgs(values []*datatypes.Data) (commands.CommandArgs, error) {
 	if len(values) < 4 {
-		return nil, errors.New("Wrong amount of values to construct xread args")
+		return nil, commands.NotEnoughValuesToConstructArgs
 	}
 	args := commands.NewArgs()
 	block := values[1].Value

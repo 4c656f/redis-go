@@ -22,7 +22,7 @@ const (
 
 func ParseXrangeArgs(values []*datatypes.Data) (commands.CommandArgs, error) {
 	if len(values) < 4 {
-		return nil, errors.New("Wrong amount of values to construct xread args")
+		return nil, commands.NotEnoughValuesToConstructArgs
 	}
 	key := values[1].Value
 	start := values[2].Value
@@ -144,9 +144,9 @@ func ConstructQueryFromArgs(arg commands.CommandArgs) (ConstructedQuery, error) 
 		return ConstructedQuery{}, fmt.Errorf("Error parsing start id of xrange: %w", err)
 	}
 	return ConstructedQuery{
-		Start: startInteval,
-		End:   endInteval,
-		Key:   streamKeyStr,
+		Start:    startInteval,
+		End:      endInteval,
+		Key:      streamKeyStr,
 		ReadType: InRange,
 	}, nil
 }

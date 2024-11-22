@@ -14,6 +14,7 @@ type DataTypes string
 const (
 	String = "string"
 	Stream = "stream"
+	Int    = "int"
 )
 
 type Storage interface {
@@ -136,8 +137,13 @@ type StorageExpValue struct {
 
 type StorageValue struct {
 	value    string
+	intValue int
 	dataType DataTypes
 	stream   stream.Stream
+}
+
+func (this *StorageValue) GetType() DataTypes {
+	return this.dataType
 }
 
 func (this *StorageValue) ToString() (string, error) {
@@ -154,6 +160,13 @@ func (this *StorageValue) ToStream() (stream.Stream, error) {
 	return this.stream, nil
 }
 
+func (this *StorageValue) ToInt() (int, error) {
+	if this.dataType != Int {
+		return -1, fmt.Errorf("Wrong stream data type cast: current type: %v", this.dataType)
+	}
+	return this.intValue, nil
+}
+
 func NewStringValue(v string) StorageValue {
 	return StorageValue{
 		value:    v,
@@ -165,6 +178,13 @@ func NewStreamValue(s stream.Stream) StorageValue {
 	return StorageValue{
 		stream:   s,
 		dataType: Stream,
+	}
+}
+
+func NewIntValue(n int) StorageValue {
+	return StorageValue{
+		intValue: n,
+		dataType: Int,
 	}
 }
 
