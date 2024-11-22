@@ -17,7 +17,7 @@ type ConnTransaction interface {
 
 type ConnTransactionImpl struct {
 	queued               []*command.Command
-	isTransactionStarted bool
+	isInTransaction bool
 }
 
 type GlobalTransaction struct {
@@ -57,7 +57,7 @@ var transactionalCommands = map[command.CommandEnum]bool{
 }
 
 func (t *ConnTransactionImpl) ShouldConsumeCommand(cmd *command.Command) bool {
-	if t.isTransactionStarted {
+	if t.isInTransaction {
 		return true
 	}
 	_, ok := transactionalCommands[cmd.Type]
@@ -80,13 +80,13 @@ func (t *ConnTransactionImpl) ExecuteCmd(cmd *command.Command, globalExecutor ex
 }
 
 func (t *ConnTransactionImpl) ProcessMulti(cmd *command.Command) *datatypes.Data {
-	t.isTransactionStarted = true
+	t.isInTransaction = true
 	return datatypes.ConstructSimpleString("OK")
 }
 
 func (t *ConnTransactionImpl) ProcessDiscard(cmd *command.Command) *datatypes.Data {
-	if t.isTransactionStarted {
-		t.isTransactionStarted = false
+	if t.isInTransaction {
+		t.isInTransaction = false
 		t.queued = nil
 		return datatypes.ConstructSimpleString("OK")
 	}
@@ -94,9 +94,10 @@ func (t *ConnTransactionImpl) ProcessDiscard(cmd *command.Command) *datatypes.Da
 }
 
 func (t *ConnTransactionImpl) ProcessExec(cmd *command.Command, globalExecutor executor.CommandExecutor) *datatypes.Data {
-	if !t.isTransactionStarted {
+	if !t.isInTransaction {
 		return datatypes.ConstructSimpleError(ExecWithoutMultiError.Error())
 	}
+	t.isInTransaction = false
 	logger.Logger.Debug("start executing transaction", logger.String("queued", fmt.Sprintf("%v", t.queued)))
 	n := len(t.queued)
 	if n <= 0 {
