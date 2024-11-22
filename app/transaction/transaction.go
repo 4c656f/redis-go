@@ -36,11 +36,14 @@ func shouldLockGlobalTransaction(cmd *command.Command) bool {
 }
 
 func (t *GlobalTransaction) ExecuteCmd(cmd *command.Command, tr ConnTransaction) *datatypes.Data {
+	logger.Logger.Debug("process command by global transaction", logger.String("cmd", string(cmd.Type)))
 	if shouldLockGlobalTransaction(cmd) {
 		t.lock.Lock()
 		defer t.lock.Unlock()
 	}
-	return tr.ExecuteCmd(cmd, t.executor)
+	logger.Logger.Debug("start processing command by conn transaction", logger.String("cmd", string(cmd.Type)))
+	res := tr.ExecuteCmd(cmd, t.executor)
+	return res
 }
 
 func NewConnectionTransactionProcessor() ConnTransaction {
@@ -62,6 +65,7 @@ func (t *ConnTransactionImpl) ShouldConsumeCommand(cmd *command.Command) bool {
 }
 
 func (t *ConnTransactionImpl) ExecuteCmd(cmd *command.Command, globalExecutor executor.CommandExecutor) *datatypes.Data {
+	logger.Logger.Debug("process command by transaction", logger.String("cmd", string(cmd.Type)))
 	switch cmd.Type {
 	case command.MULTI:
 		return t.ProcessMulti(cmd)

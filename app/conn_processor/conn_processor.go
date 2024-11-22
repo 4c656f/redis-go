@@ -70,7 +70,7 @@ func (this *MasterConnProcessor) Process(conn net.Conn) {
 		}
 		if connTransact.ShouldConsumeCommand(cmd) {
 			conn.Write(this.globalTransct.ExecuteCmd(cmd, connTransact).Marshall())
-			return
+			continue
 		}
 		output := this.commandExecutor.ExecuteCmd(cmd, true)
 		this.replicas_storage.PropagateCmd(cmd)
