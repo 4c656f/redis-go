@@ -3,6 +3,7 @@ package executor
 import (
 	"errors"
 	"fmt"
+	"strconv"
 
 	"github.com/codecrafters-io/redis-starter-go/app/command"
 	"github.com/codecrafters-io/redis-starter-go/app/commands"
@@ -108,10 +109,17 @@ func (this *executor) ExecuteSet(cmd *command.Command) (ExecutionResult, error) 
 	if err != nil {
 		return nil, err
 	}
-	if args.Px != -1 {
-		err = this.storage.SetExp(args.Key, storage.NewStringValue(args.Value), args.Px)
+	intVal, err := strconv.Atoi(args.Value)
+	var constructedEntrie storage.StorageValue
+	if err != nil {
+		constructedEntrie = storage.NewIntValue(intVal)
 	} else {
-		err = this.storage.Set(args.Key, storage.NewStringValue(args.Value))
+		constructedEntrie = storage.NewStringValue(args.Value)
+	}
+	if args.Px != -1 {
+		err = this.storage.SetExp(args.Key, constructedEntrie, args.Px)
+	} else {
+		err = this.storage.Set(args.Key, constructedEntrie)
 		logger.Logger.Debug("set storageval", logger.String("key", args.Key), logger.String("value", args.Value))
 	}
 	if err != nil {
