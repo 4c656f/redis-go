@@ -6,7 +6,7 @@ A lightweight Redis implementation written in Go, serves as presonal learning pr
 - [Features](#features)
 - [Installation](#installation)
 - [Command Compatibility](#command-compatibility)
-- [Contributing](#ontributing)
+- [Contributing](#contributing)
 
 ## Features
 
@@ -20,7 +20,7 @@ A lightweight Redis implementation written in Go, serves as presonal learning pr
 - RDB persistence support
 
 
-## Instalation
+## Installation
 
 clone this repository
 ```bash
