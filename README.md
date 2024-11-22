@@ -1,34 +1,82 @@
-[![progress-banner](https://backend.codecrafters.io/progress/redis/0591118d-ad4e-48ad-a673-a48d5ea65bfa)](https://app.codecrafters.io/users/4c656f?r=2qF)
+# GoRedis
 
-This is a starting point for Go solutions to the
-["Build Your Own Redis" Challenge](https://codecrafters.io/challenges/redis).
+A lightweight Redis implementation written in Go, serves as presonal learning project, tested using [codecrafters](https://app.codecrafters.io/courses/redis).
 
-In this challenge, you'll build a toy Redis clone that's capable of handling
-basic commands like `PING`, `SET` and `GET`. Along the way we'll learn about
-event loops, the Redis protocol and more.
+## Table of Contents
+- [Features](#features)
+- [Installation](#installation)
+- [Command Compatibility](#command-compatibility)
+- [Contributing](#ontributing)
 
-**Note**: If you're viewing this repo on GitHub, head over to
-[codecrafters.io](https://codecrafters.io) to try the challenge.
+## Features
 
-# Passing the first stage
+- Pure Go implementation
+- Сompatible with redis-server/redis-cli
+- Redis protocol support
+- Key-value operations
+- Streams support
+- Transactions support
+- Replication capabilities
+- RDB persistence support
 
-The entry point for your Redis implementation is in `app/server.go`. Study and
-uncomment the relevant code, and push your changes to pass the first stage:
 
-```sh
-git add .
-git commit -m "pass 1st stage" # any msg
-git push origin master
+## Instalation
+
+clone this repository
+```bash
+git clone https://github.com/4c656f/redis-go
+```
+install golang >= 1.22
+
+start server
+
+```bash
+./your_program.sh
+```
+to execute commands via redis-cli run redis-server on custom port
+```bash
+redis-server --port 3780
+```
+execute command
+```bash
+redis-cli ping
 ```
 
-That's all!
+## Command Compatibility
 
-# Stage 2 & beyond
+| Category         | Command    | Arguments                                                                                                   |
+| ---------------- | ---------- | ----------------------------------------------------------------------------------------------------------- |
+| **Connection**   | PING       | [message]                                                                                                   |
+|                  | PONG       | [message]                                                                                                   |
+|                  | ECHO       | message                                                                                                     |
+| **Key-Value**    | SET        | key value [EX seconds] [PX milliseconds] [NX\|XX]                                                           |
+|                  | GET        | key                                                                                                         |
+|                  | KEYS       | pattern                                                                                                     |
+|                  | TYPE       | key                                                                                                         |
+|                  | INCR       | key                                                                                                         |
+| **Server**       | INFO       | [all/replication]                                                                                           |
+|                  | CONFIG     | GET dir/dbfilename                                                                                          |
+| **Replication**  | REPLCONF   | listening-port / GETACK ackType / ACK offset / capa psynch2                                                 |
+|                  | PSYNC      | replicationid offset                                                                                        |
+|                  | FULLRESYNC | replicationid offset                                                                                        |
+|                  | WAIT       | numreplicas timeout                                                                                         |
+| **Streams**      | XADD       | key [NOMKSTREAM] [<MAXLEN / MINID> [= / ~] threshold [LIMIT count]] <\* / id> field value [field value ...] |
+|                  | XRANGE     | key start end [COUNT count]                                                                                 |
+|                  | XREAD      | [COUNT count] [BLOCK milliseconds] STREAMS key [key ...] ID [ID ...]                                        |
+| **Transactions** | MULTI      | (no arguments)                                                                                              |
+|                  | EXEC       | (no arguments)                                                                                              |
+|                  | DISCARD    | (no arguments)                                                                                              |
+| **Generic**      | OK         | (no arguments)                                                                                              |
+|                  | ERROR      | (no arguments)                                                                                              |
 
-Note: This section is for stages 2 and beyond.
+## Contributing
 
-1. Ensure you have `go (1.19)` installed locally
-1. Run `./spawn_redis_server.sh` to run your Redis server, which is implemented
-   in `app/server.go`.
-1. Commit your changes and run `git push origin master` to submit your solution
-   to CodeCrafters. Test output will be streamed to your terminal.
+I will be glad to receive any of your questions/suggestions/contributions to this project! 
+contact me via:
+
+[Twitter](https://x.com/4c656f)
+
+[Email](mailto:tarabrinleonid@gmail.com)
+
+[Telegram](https://t.me/c656f)
+
