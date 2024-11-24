@@ -23,7 +23,6 @@ import (
 	"github.com/codecrafters-io/redis-starter-go/app/types"
 )
 
-
 type CommandProcessor interface {
 	ProcessCmd(cmd *command.Command) (*datatypes.Data, error)
 }
@@ -392,10 +391,10 @@ func (this *executor) ExecuteXRead(cmd *command.Command) (*datatypes.Data, error
 		if newEntrie == nil {
 			return datatypes.ConstructNull(), nil
 		}
-		return datatypes.ConstructArrayFromData([]*datatypes.Data{
+		return datatypes.ConstructArrayFromData([]*datatypes.Data{datatypes.ConstructArrayFromData([]*datatypes.Data{
 			datatypes.ConstructBulkString(blockedQuery.Key),
 			datatypes.ConstructArrayFromData([]*datatypes.Data{newEntrie.ToDataType()}),
-		}), nil
+		})}), nil
 	}
 	existedEnties := queryStream.GetInRangeExcl(&blockedQuery.Start, nil)
 	logger.Logger.Debug("blocking stream", logger.String("entries", fmt.Sprintf("%v", existedEnties)))
@@ -411,11 +410,13 @@ func (this *executor) ExecuteXRead(cmd *command.Command) (*datatypes.Data, error
 		encodedQueries[i] = e.ToDataType()
 	}
 	logger.Logger.Debug("serialize entries")
-	d := datatypes.ConstructArrayFromData([]*datatypes.Data{
+	streamData := datatypes.ConstructArrayFromData([]*datatypes.Data{
 		datatypes.ConstructBulkString(blockedQuery.Key),
 		datatypes.ConstructArrayFromData(encodedQueries),
 	})
-	return d, nil
+	return datatypes.ConstructArrayFromData([]*datatypes.Data{
+		streamData,
+	}), nil
 }
 
 func (this *executor) ExecuteIncr(cmd *command.Command) (*datatypes.Data, error) {
