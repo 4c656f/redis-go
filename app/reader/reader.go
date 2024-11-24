@@ -31,6 +31,9 @@ func (this *Reader) ParseDataType() (data *datatypes.Data, err error) {
 		return nil, fmt.Errorf("Unexpected commands dataType given: %v", string(initType))
 	}
 	data, raw, err := this.ReadStreamAcordDataType(dataType)
+	if err != nil {
+		return nil, err
+	}
 	data.Raw = make([]byte, len(raw)+1)
 	data.Raw[0] = initType
 	copy(data.Raw[1:], raw)

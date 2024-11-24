@@ -26,7 +26,7 @@ type Storage interface {
 	KeysLen() int
 	Set(key string, val StorageValue) error
 	SetExp(key string, val StorageValue, px int) error
-	Delete(key string) error
+	Delete(key string)
 	Lock()
 	UnLock()
 }
@@ -91,11 +91,10 @@ func (this *StorageImpl) Set(key string, val StorageValue) error {
 	return nil
 }
 
-func (this *StorageImpl) Delete(key string) error {
+func (this *StorageImpl) Delete(key string) {
 	this.Lock()
 	defer this.UnLock()
 	delete(this.values, key)
-	return nil
 }
 
 func (this *StorageImpl) SetExp(key string, val StorageValue, px int) error {
@@ -158,7 +157,8 @@ func (this *StorageValue) GetType() DataTypes {
 
 func (this *StorageValue) ToString() (string, error) {
 	if this.dataType != String {
-		return "", fmt.Errorf("Wrong string data type cast: current type: %v", this.dataType)
+return "", fmt.Errorf("Wrong string data type cast: current type: %v", this.dataType)
+
 	}
 	return this.value, nil
 }

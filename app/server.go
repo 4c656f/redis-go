@@ -2,7 +2,10 @@ package main
 
 import (
 	"fmt"
+	"net/http"
+	_ "net/http/pprof"
 	"os"
+	"runtime"
 
 	"net"
 
@@ -26,6 +29,10 @@ type Server struct {
 }
 
 func main() {
+	runtime.SetBlockProfileRate(1)
+	go func() {
+		fmt.Println(http.ListenAndServe("localhost:8080", nil))
+	}()
 	server := NewServer()
 	err := server.SendHandShake()
 	if err != nil {

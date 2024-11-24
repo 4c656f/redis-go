@@ -75,10 +75,7 @@ func TestStorage_Delete(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	err = storage.Delete("key1")
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	storage.Delete("key1")
 
 	val, err := storage.Get("key1")
 	if err != nil {
